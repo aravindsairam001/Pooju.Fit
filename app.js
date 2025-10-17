@@ -472,57 +472,59 @@ class PoojoFit {
     showWorkoutScreen() {
         // Hide main content and show workout interface
         document.querySelector('body').innerHTML = this.getWorkoutHTML();
-        this.attachWorkoutEventListeners();
         this.startCurrentExercise();
         lucide.createIcons();
+        
+        // Always attach listeners (they'll be properly cleaned up)
+        this.attachWorkoutEventListeners();
     }
 
     // Attach event listeners for workout screen
     attachWorkoutEventListeners() {
-        // Back button
-        const backBtn = document.getElementById('back-btn');
-        if (backBtn) {
-            backBtn.addEventListener('click', (e) => {
+        // Remove any existing workout event listener to prevent duplicates
+        if (this.workoutEventHandler) {
+            document.body.removeEventListener('click', this.workoutEventHandler);
+        }
+
+        // Create the event handler function
+        this.workoutEventHandler = (e) => {
+            // Only handle workout screen buttons
+            if (!this.currentWorkout) return;
+            
+            console.log('Click detected:', e.target.id, e.target);
+            
+            // Check for button clicks
+            if (e.target.id === 'back-btn' || e.target.closest('#back-btn')) {
                 e.preventDefault();
+                console.log('Back button clicked');
                 this.exitWorkout();
-            });
-        }
-
-        // Pause button
-        const pauseBtn = document.getElementById('pause-btn');
-        if (pauseBtn) {
-            pauseBtn.addEventListener('click', (e) => {
+            } else if (e.target.id === 'pause-btn' || e.target.closest('#pause-btn')) {
                 e.preventDefault();
-                this.pauseWorkout();
-            });
-        }
-
-        // Skip button (for timed exercises)
-        const skipBtn = document.getElementById('skip-btn');
-        if (skipBtn) {
-            skipBtn.addEventListener('click', (e) => {
+                console.log('Pause button clicked, isPaused:', this.currentWorkout?.isPaused);
+                // Check if it's pause or resume based on current state
+                if (this.currentWorkout?.isPaused) {
+                    this.resumeWorkout();
+                } else {
+                    this.pauseWorkout();
+                }
+            } else if (e.target.id === 'skip-btn' || e.target.closest('#skip-btn')) {
                 e.preventDefault();
+                console.log('Skip button clicked');
                 this.skipCurrentExercise();
-            });
-        }
-
-        // Next/Finish button
-        const nextBtn = document.getElementById('next-btn');
-        const finishBtn = document.getElementById('finish-btn');
-        
-        if (nextBtn) {
-            nextBtn.addEventListener('click', (e) => {
+            } else if (e.target.id === 'next-btn' || e.target.closest('#next-btn')) {
                 e.preventDefault();
+                console.log('Next button clicked');
                 this.nextExercise();
-            });
-        }
-        
-        if (finishBtn) {
-            finishBtn.addEventListener('click', (e) => {
+            } else if (e.target.id === 'finish-btn' || e.target.closest('#finish-btn')) {
                 e.preventDefault();
+                console.log('Finish button clicked');
                 this.finishWorkout();
-            });
-        }
+            }
+        };
+
+        // Use event delegation on the body for workout buttons
+        document.body.addEventListener('click', this.workoutEventHandler);
+        console.log('Workout event listeners attached');
     }
 
     // Generate workout HTML
@@ -644,8 +646,10 @@ class PoojoFit {
         } else {
             // For rep-based exercises, show reps and wait for user input
             const display = document.getElementById('exercise-display');
-            display.textContent = exercise.reps;
-            display.className = 'text-6xl font-bold mb-6 text-purple-400';
+            if (display) {
+                display.textContent = exercise.reps;
+                display.className = 'text-6xl font-bold mb-6 text-purple-400';
+            }
             
             // Add instruction for rep-based exercises
             const instructionEl = document.querySelector('.text-xl.text-gray-300');
@@ -719,40 +723,63 @@ class PoojoFit {
 
     // Next exercise  
     nextExercise() {
-        if (this.currentWorkout.isActive) {
-            const currentProgram = this.workoutPrograms.find(p => p.id === this.currentWorkout.programId);
-            const currentEx = currentProgram.exercises[this.currentWorkout.exerciseIndex];
-            
-            // Show rest timer if there's a rest period
-            if (currentEx.rest > 0) {
-                this.showRestTimer(currentEx.rest);
-                return;
-            }
-            
-            this.proceedToNextExercise();
+        if (!this.currentWorkout || !this.currentWorkout.data) {
+            console.log('No current workout data');
+            return;
         }
+        
+        const workout = this.currentWorkout.data;
+        const currentEx = workout.exercises[this.currentWorkout.currentExercise];
+        
+        // Show rest timer if there's a rest period for this exercise
+        if (currentEx && currentEx.rest > 0) {
+            this.showRestTimer(currentEx.rest);
+            return;
+        }
+        
+        this.proceedToNextExercise();
     }
 
     proceedToNextExercise() {
-        const currentProgram = this.workoutPrograms.find(p => p.id === this.currentWorkout.programId);
+        const workout = this.currentWorkout.data;
         
         // Check if it's the last exercise of the current round
-        if (this.currentWorkout.exerciseIndex >= currentProgram.exercises.length - 1) {
-            if (this.currentWorkout.round >= currentProgram.rounds) {
-                // Start cooldown
-                this.showCooldownScreen(currentProgram);
+        if (this.currentWorkout.currentExercise >= workout.exercises.length - 1) {
+            if (this.currentWorkout.currentRound >= workout.rounds) {
+                // Workout is complete
+                this.finishWorkout();
                 return;
             }
             
             // Start next round
-            this.currentWorkout.round++;
-            this.currentWorkout.exerciseIndex = 0;
-            this.showRoundTransition(this.currentWorkout.round);
+            this.currentWorkout.currentRound++;
+            this.currentWorkout.currentExercise = 0;
+            
+            // Show round transition message briefly
+            const display = document.getElementById('exercise-display');
+            if (display) {
+                display.textContent = `Round ${this.currentWorkout.currentRound}`;
+                display.className = 'text-6xl font-bold mb-6 text-green-400';
+                
+                setTimeout(() => {
+                    this.updateWorkoutDisplay();
+                }, 1500);
+            }
         } else {
             // Move to next exercise
-            this.currentWorkout.exerciseIndex++;
-            this.showExercise();
+            this.currentWorkout.currentExercise++;
+            this.updateWorkoutDisplay();
         }
+    }
+
+    updateWorkoutDisplay() {
+        // Update the entire workout screen
+        document.querySelector('body').innerHTML = this.getWorkoutHTML();
+        this.startCurrentExercise();
+        lucide.createIcons();
+        
+        // Re-attach event listeners after updating the display
+        this.attachWorkoutEventListeners();
     }
 
     showRestTimer(restDuration) {
@@ -965,6 +992,7 @@ class PoojoFit {
         if (!this.currentWorkout?.isPaused) {
             // Pause the workout
             this.currentWorkout.isPaused = true;
+            this.currentWorkout.pauseStartTime = new Date();
             clearInterval(this.exerciseTimer);
             clearInterval(this.workoutTimer);
             
@@ -972,11 +1000,11 @@ class PoojoFit {
             const pauseBtn = document.getElementById('pause-btn');
             if (pauseBtn) {
                 pauseBtn.innerHTML = '<i data-lucide="play" class="w-5 h-5 mr-2 inline"></i>Resume';
-                pauseBtn.onclick = () => window.poojoFit.resumeWorkout();
             }
             
             // Show pause overlay
             this.showPauseOverlay();
+            lucide.createIcons(); // Refresh icons
         }
     }
 
@@ -1002,12 +1030,11 @@ class PoojoFit {
             const pauseBtn = document.getElementById('pause-btn');
             if (pauseBtn) {
                 pauseBtn.innerHTML = '<i data-lucide="pause" class="w-5 h-5 mr-2 inline"></i>Pause';
-                pauseBtn.onclick = () => window.poojoFit.pauseWorkout();
             }
             
             // Remove pause overlay
             this.removePauseOverlay();
-            lucide.createIcons();
+            lucide.createIcons(); // Refresh icons
         }
     }
 
@@ -1077,6 +1104,12 @@ class PoojoFit {
                 
                 // Remove pause overlay if it exists
                 this.removePauseOverlay();
+                
+                // Clean up event listeners
+                if (this.workoutEventHandler) {
+                    document.body.removeEventListener('click', this.workoutEventHandler);
+                    this.workoutEventHandler = null;
+                }
                 
                 // Reset workout state
                 this.currentWorkout = null;
