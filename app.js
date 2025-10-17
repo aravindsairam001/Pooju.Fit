@@ -26,10 +26,12 @@ class PoojoFit {
 
     // Initialize UI Components
     initializeUI() {
+        console.log('Initializing UI...');
         this.createWeeklySchedule();
         this.setupProgressTracking();
         this.initializeMobileMenu();
         this.updateTodaysWorkout();
+        console.log('UI initialization complete');
     }
 
     // Event Binding
@@ -54,12 +56,16 @@ class PoojoFit {
             menuBtn.addEventListener('click', this.toggleMobileMenu);
         }
 
-        // Workout start buttons
-        document.querySelectorAll('.workout-start-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                const workoutType = e.target.dataset.workout;
-                this.startWorkout(workoutType);
-            });
+        // Use event delegation for workout buttons since they're dynamically created
+        document.addEventListener('click', (e) => {
+            if (e.target.matches('[data-workout]') || e.target.matches('[onclick*="startWorkout"]')) {
+                e.preventDefault();
+                const workoutType = e.target.dataset.workout || 
+                                  (e.target.onclick && e.target.onclick.toString().match(/startWorkout\('([^']+)'\)/)?.[1]);
+                if (workoutType && workoutType !== 'undefined') {
+                    this.startWorkout(workoutType);
+                }
+            }
         });
     }
 
@@ -144,63 +150,116 @@ class PoojoFit {
         const weeklyPlan = this.getWeeklyPlan();
         const todaysWorkout = weeklyPlan[today];
         
-        // Update hero section
+        console.log(`Today is ${today}, workout:`, todaysWorkout);
+        
+        // Update the existing today's workout card in hero section
         this.updateHeroSection(todaysWorkout, today);
     }
 
     // Update hero section with today's workout
     updateHeroSection(todaysWorkout, dayName) {
-        const heroSection = document.querySelector('#home .max-w-4xl');
+        const workoutContentDiv = document.getElementById('workout-content');
+        const startTodayBtn = document.getElementById('start-today-btn');
         
-        const todaysWorkoutCard = `
-            <div class="mt-12 glass rounded-3xl p-8 max-w-2xl mx-auto">
-                <div class="text-center mb-6">
-                    <h3 class="text-2xl font-bold text-yellow-400 mb-2">Today's Workout - ${dayName}</h3>
+        if (!workoutContentDiv) return;
+        
+        // Check if today's workout is already completed
+        const userData = this.getUserData();
+        const today = new Date().toDateString();
+        const isCompleted = userData.completedWorkouts && userData.completedWorkouts[today];
+        
+        if (isCompleted) {
+            // Show completion status
+            const completedWorkout = userData.completedWorkouts[today];
+            workoutContentDiv.innerHTML = `
+                <div class="text-center">
+                    <div class="w-16 h-16 bg-gradient-to-r from-green-500 to-emerald-500 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                        <i data-lucide="check-circle" class="w-8 h-8 text-white"></i>
+                    </div>
+                    <h4 class="text-xl font-bold mb-2">Workout Complete! 🎉</h4>
+                    <p class="text-gray-300 mb-4">You completed <strong>${completedWorkout.workoutName}</strong></p>
+                    <div class="grid grid-cols-2 gap-3 text-sm text-gray-400 mb-4">
+                        <div>⏱️ ${completedWorkout.duration} minutes</div>
+                        <div>🔥 ${completedWorkout.exercises} exercises</div>
+                        <div>🔄 ${completedWorkout.rounds} rounds</div>
+                        <div>✅ ${new Date(completedWorkout.completedAt).toLocaleTimeString()}</div>
+                    </div>
+                    <div class="bg-green-500/10 rounded-lg p-3 border border-green-500/20">
+                        <div class="font-bold text-green-400 mb-1">Great job! 💪</div>
+                        <div class="text-gray-300 text-sm">Tomorrow's challenge awaits!</div>
+                    </div>
+                </div>
+            `;
+            
+            if (startTodayBtn) {
+                startTodayBtn.textContent = 'Already Completed ✅';
+                startTodayBtn.disabled = true;
+                startTodayBtn.className = 'bg-green-600 border border-green-500 text-white px-8 py-4 rounded-2xl text-lg font-semibold cursor-not-allowed opacity-75';
+            }
+        } else if (todaysWorkout.workout === 'rest') {
+            workoutContentDiv.innerHTML = `
+                <div class="text-center">
                     <div class="w-16 h-16 bg-gradient-to-r ${todaysWorkout.gradient} rounded-2xl flex items-center justify-center mx-auto mb-4">
                         <i data-lucide="${todaysWorkout.icon}" class="w-8 h-8 text-white"></i>
                     </div>
-                    <h4 class="text-3xl font-bold mb-2">${todaysWorkout.name}</h4>
+                    <h4 class="text-xl font-bold mb-2">${todaysWorkout.name}</h4>
                     <p class="text-gray-300 mb-4">${todaysWorkout.focus}</p>
-                    <div class="flex justify-center items-center gap-6 text-sm text-gray-400 mb-6">
+                    <div class="flex justify-center items-center gap-4 text-sm text-gray-400 mb-6">
+                        <span>⏱️ ${todaysWorkout.duration}</span>
+                        <span>🧘 ${todaysWorkout.intensity}</span>
+                    </div>
+                    
+                    <div class="grid grid-cols-2 gap-3 text-xs">
+                        <div class="bg-gray-700/30 rounded-lg p-3">
+                            <div class="font-bold mb-1">💧 Hydrate</div>
+                            <div class="text-gray-400">2-3L water</div>
+                        </div>
+                        <div class="bg-gray-700/30 rounded-lg p-3">
+                            <div class="font-bold mb-1">🧘 Stretch</div>
+                            <div class="text-gray-400">10-15 min</div>
+                        </div>
+                        <div class="bg-gray-700/30 rounded-lg p-3">
+                            <div class="font-bold mb-1">🚶 Walk</div>
+                            <div class="text-gray-400">20-30 min</div>
+                        </div>
+                        <div class="bg-gray-700/30 rounded-lg p-3">
+                            <div class="font-bold mb-1">📝 Plan</div>
+                            <div class="text-gray-400">Tomorrow</div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            if (startTodayBtn) {
+                startTodayBtn.textContent = 'Enjoy Your Rest Day 😌';
+                startTodayBtn.disabled = true;
+                startTodayBtn.className = 'bg-gray-600 border border-gray-500 text-gray-300 px-8 py-4 rounded-2xl text-lg font-semibold cursor-not-allowed';
+            }
+        } else {
+            workoutContentDiv.innerHTML = `
+                <div class="text-center">
+                    <div class="w-16 h-16 bg-gradient-to-r ${todaysWorkout.gradient} rounded-2xl flex items-center justify-center mx-auto mb-4">
+                        <i data-lucide="${todaysWorkout.icon}" class="w-8 h-8 text-white"></i>
+                    </div>
+                    <h4 class="text-xl font-bold mb-2">${todaysWorkout.name}</h4>
+                    <p class="text-gray-300 mb-4">${todaysWorkout.focus}</p>
+                    <div class="flex justify-center items-center gap-4 text-sm text-gray-400">
                         <span>⏱️ ${todaysWorkout.duration}</span>
                         <span>🔥 ${todaysWorkout.intensity}</span>
                     </div>
                 </div>
-                
-                ${todaysWorkout.workout === 'rest' ? 
-                    `<div class="text-center">
-                        <p class="text-lg text-gray-300 mb-4">Take a well-deserved rest today!</p>
-                        <div class="grid grid-cols-2 gap-4 text-sm">
-                            <div class="bg-gray-700/30 rounded-xl p-4">
-                                <h5 class="font-bold mb-2">💧 Stay Hydrated</h5>
-                                <p class="text-gray-400">Drink 2-3L of water</p>
-                            </div>
-                            <div class="bg-gray-700/30 rounded-xl p-4">
-                                <h5 class="font-bold mb-2">🧘 Light Stretching</h5>
-                                <p class="text-gray-400">10-15 minutes</p>
-                            </div>
-                            <div class="bg-gray-700/30 rounded-xl p-4">
-                                <h5 class="font-bold mb-2">🚶 Gentle Walk</h5>
-                                <p class="text-gray-400">20-30 minutes</p>
-                            </div>
-                            <div class="bg-gray-700/30 rounded-xl p-4">
-                                <h5 class="font-bold mb-2">📝 Plan Tomorrow</h5>
-                                <p class="text-gray-400">Prep for next workout</p>
-                            </div>
-                        </div>
-                    </div>` :
-                    `<div class="text-center">
-                        <button onclick="window.poojoFit.startWorkout('${todaysWorkout.workout}')" 
-                                class="bg-gradient-to-r ${todaysWorkout.gradient} hover:from-pink-600 hover:to-rose-600 text-white font-bold py-4 px-8 rounded-2xl text-lg transition-all duration-300 transform hover:scale-105 shadow-lg mb-4">
-                            Start Today's Workout 💪
-                        </button>
-                        <p class="text-sm text-gray-400">Or choose from the weekly schedule below</p>
-                    </div>`
-                }
-            </div>
-        `;
+            `;
+            
+            if (startTodayBtn) {
+                startTodayBtn.textContent = 'Start Today\'s Workout 💪';
+                startTodayBtn.disabled = false;
+                startTodayBtn.className = 'bg-gradient-to-r ' + todaysWorkout.gradient + ' text-white px-8 py-4 rounded-2xl text-lg font-semibold hover:opacity-90 transition-all duration-300 transform hover:scale-105 shadow-lg';
+                startTodayBtn.onclick = () => this.startWorkout(todaysWorkout.workout);
+            }
+        }
         
-        heroSection.insertAdjacentHTML('beforeend', todaysWorkoutCard);
+        // Refresh icons after updating content
+        setTimeout(() => lucide.createIcons(), 100);
     }
 
     // Display weekly schedule
@@ -208,25 +267,38 @@ class PoojoFit {
         const workoutsSection = document.querySelector('#workouts .grid');
         const today = new Date().toLocaleDateString('en-US', { weekday: 'long' });
         
+        if (!workoutsSection) {
+            console.error('Workouts section not found');
+            return;
+        }
+        
+        // Check completion status
+        const userData = this.getUserData();
+        const todayDate = new Date().toDateString();
+        const isCompleted = userData.completedWorkouts && userData.completedWorkouts[todayDate];
+        
         workoutsSection.innerHTML = '';
-        workoutsSection.className = 'grid md:grid-cols-2 lg:grid-cols-4 gap-4';
+        workoutsSection.className = 'grid md:grid-cols-2 lg:grid-cols-4 gap-6';
         
         Object.entries(weeklyPlan).forEach(([day, workout]) => {
             const isToday = day === today;
+            const isTodayCompleted = isToday && isCompleted;
             const cardClass = isToday ? 'ring-2 ring-yellow-400 ring-opacity-60' : '';
+            const completedClass = isTodayCompleted ? 'ring-2 ring-green-400 ring-opacity-60' : '';
             
             const workoutCard = `
-                <div class="glass rounded-2xl p-6 card-hover ${cardClass} relative">
-                    ${isToday ? '<div class="absolute -top-2 -right-2 bg-yellow-400 text-black text-xs font-bold px-2 py-1 rounded-full">TODAY</div>' : ''}
+                <div class="glass rounded-2xl p-6 card-hover ${cardClass} ${completedClass} relative">
+                    ${isToday && !isTodayCompleted ? '<div class="absolute -top-2 -right-2 bg-yellow-400 text-black text-xs font-bold px-2 py-1 rounded-full">TODAY</div>' : ''}
+                    ${isTodayCompleted ? '<div class="absolute -top-2 -right-2 bg-green-400 text-black text-xs font-bold px-2 py-1 rounded-full">DONE ✓</div>' : ''}
                     
                     <div class="text-center mb-4">
                         <h4 class="text-lg font-bold mb-2">${day}</h4>
-                        <div class="w-12 h-12 bg-gradient-to-r ${workout.gradient} rounded-xl flex items-center justify-center mx-auto mb-3">
-                            <i data-lucide="${workout.icon}" class="w-6 h-6 text-white"></i>
+                        <div class="w-12 h-12 bg-gradient-to-r ${workout.gradient} rounded-xl flex items-center justify-center mx-auto mb-3 ${isTodayCompleted ? 'opacity-75' : ''}">
+                            <i data-lucide="${isTodayCompleted ? 'check-circle' : workout.icon}" class="w-6 h-6 text-white"></i>
                         </div>
                     </div>
                     
-                    <h5 class="text-xl font-bold mb-2 text-center">${workout.name}</h5>
+                    <h5 class="text-xl font-bold mb-2 text-center ${isTodayCompleted ? 'text-green-400' : ''}">${workout.name}</h5>
                     <p class="text-gray-300 text-sm text-center mb-3">${workout.focus}</p>
                     
                     <div class="space-y-2 text-xs text-gray-400 mb-4">
@@ -244,6 +316,10 @@ class PoojoFit {
                         `<button class="w-full bg-gray-600 text-gray-300 py-2 rounded-xl text-sm cursor-not-allowed">
                             Rest Day 😌
                         </button>` :
+                        isTodayCompleted ? 
+                        `<button class="w-full bg-green-600 text-white py-2 rounded-xl text-sm font-bold cursor-not-allowed opacity-75">
+                            Completed ✓
+                        </button>` :
                         `<button onclick="window.poojoFit.startWorkout('${workout.workout}')" 
                                 class="w-full bg-gradient-to-r ${workout.gradient} hover:opacity-80 text-white py-2 rounded-xl text-sm font-bold transition-all duration-200">
                             ${isToday ? 'Start Now!' : 'Start Workout'}
@@ -254,17 +330,30 @@ class PoojoFit {
             
             workoutsSection.insertAdjacentHTML('beforeend', workoutCard);
         });
+        
+        // Refresh icons after adding all workout cards
+        setTimeout(() => lucide.createIcons(), 100);
     }
 
     // Setup Progress Tracking
     setupProgressTracking() {
         const userData = this.getUserData();
         
-        // Update stats display
-        document.querySelector('.workout-count').textContent = userData.totalWorkouts || 0;
-        document.querySelector('.streak-count').textContent = userData.currentStreak || 0;
-        document.querySelector('.time-count').textContent = userData.totalTime || '0h';
-        document.querySelector('.pr-count').textContent = userData.personalRecords || 0;
+        // Update stats display if elements exist
+        const workoutCountEl = document.querySelector('.workout-count');
+        const streakCountEl = document.querySelector('.streak-count'); 
+        const timeCountEl = document.querySelector('.time-count');
+        const prCountEl = document.querySelector('.pr-count');
+        
+        if (workoutCountEl) workoutCountEl.textContent = userData.totalWorkouts || 0;
+        if (streakCountEl) streakCountEl.textContent = userData.currentStreak || 0;
+        if (timeCountEl) timeCountEl.textContent = userData.totalTime || '0h';
+        if (prCountEl) prCountEl.textContent = userData.personalRecords || 0;
+    }
+
+    // Initialize Mobile Menu
+    initializeMobileMenu() {
+        console.log('Mobile menu initialized');
     }
 
     // Mobile Menu Toggle
@@ -291,6 +380,9 @@ class PoojoFit {
             currentRound: 1,
             currentExercise: 0,
             isResting: false,
+            isPaused: false,
+            exerciseTimeLeft: 0,
+            pauseStartTime: null,
             startTime: new Date()
         };
 
@@ -435,10 +527,16 @@ class PoojoFit {
                             class="glass px-6 py-3 rounded-xl font-bold">
                         <i data-lucide="pause" class="w-5 h-5 mr-2 inline"></i>Pause
                     </button>
-                    <button onclick="window.poojoFit.nextExercise()" 
-                            class="bg-gradient-to-r from-pink-500 to-purple-500 px-6 py-3 rounded-xl font-bold">
-                        <i data-lucide="skip-forward" class="w-5 h-5 mr-2 inline"></i>Next
-                    </button>
+                    ${this.isLastExerciseOfWorkout() ? 
+                        `<button onclick="window.poojoFit.completeWorkout()" id="finish-btn"
+                                class="bg-gradient-to-r from-green-500 to-emerald-500 px-6 py-3 rounded-xl font-bold">
+                            <i data-lucide="check-circle" class="w-5 h-5 mr-2 inline"></i>Finish
+                        </button>` :
+                        `<button onclick="window.poojoFit.nextExercise()" id="next-btn"
+                                class="bg-gradient-to-r from-pink-500 to-purple-500 px-6 py-3 rounded-xl font-bold">
+                            <i data-lucide="skip-forward" class="w-5 h-5 mr-2 inline"></i>Next
+                        </button>`
+                    }
                 </div>
 
                 <!-- Exercise List -->
@@ -456,6 +554,14 @@ class PoojoFit {
             </div>
         </div>
         `;
+    }
+
+    // Check if this is the last exercise of the entire workout
+    isLastExerciseOfWorkout() {
+        const workout = this.currentWorkout.data;
+        const isLastExercise = this.currentWorkout.currentExercise === workout.exercises.length - 1;
+        const isLastRound = this.currentWorkout.currentRound === workout.rounds;
+        return isLastExercise && isLastRound;
     }
 
     // Start current exercise
@@ -478,13 +584,19 @@ class PoojoFit {
         let timeLeft = seconds;
         const display = document.getElementById('exercise-display');
         
+        // Store the remaining time for pause functionality
+        this.currentWorkout.exerciseTimeLeft = timeLeft;
+        
         this.exerciseTimer = setInterval(() => {
-            display.textContent = timeLeft;
-            timeLeft--;
-            
-            if (timeLeft < 0) {
-                clearInterval(this.exerciseTimer);
-                this.nextExercise();
+            if (!this.currentWorkout.isPaused) {
+                display.textContent = timeLeft;
+                this.currentWorkout.exerciseTimeLeft = timeLeft;
+                timeLeft--;
+                
+                if (timeLeft < 0) {
+                    clearInterval(this.exerciseTimer);
+                    this.nextExercise();
+                }
             }
         }, 1000);
     }
@@ -495,10 +607,14 @@ class PoojoFit {
         const timerDisplay = document.getElementById('workout-timer');
         
         this.workoutTimer = setInterval(() => {
-            const elapsed = Math.floor((new Date() - startTime) / 1000);
-            const minutes = Math.floor(elapsed / 60);
-            const seconds = elapsed % 60;
-            timerDisplay.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+            if (!this.currentWorkout.isPaused) {
+                const elapsed = Math.floor((new Date() - startTime) / 1000);
+                const minutes = Math.floor(elapsed / 60);
+                const seconds = elapsed % 60;
+                if (timerDisplay) {
+                    timerDisplay.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+                }
+            }
         }, 1000);
     }
 
@@ -529,6 +645,10 @@ class PoojoFit {
         clearInterval(this.exerciseTimer);
         
         const totalTime = Math.floor((new Date() - this.currentWorkout.startTime) / 1000 / 60);
+        const workoutDate = new Date().toDateString();
+        
+        // Update comprehensive user data
+        this.saveWorkoutCompletion(totalTime, workoutDate);
         
         document.querySelector('body').innerHTML = `
         <div class="min-h-screen gradient-bg text-white flex items-center justify-center p-6">
@@ -536,42 +656,249 @@ class PoojoFit {
                 <div class="text-8xl mb-6">🎉</div>
                 <h2 class="text-4xl font-bold mb-4">Workout Complete!</h2>
                 <p class="text-xl text-gray-300 mb-6">
-                    You completed ${this.currentWorkout.data.name} in ${totalTime} minutes!
+                    Amazing work! You completed <strong>${this.currentWorkout.data.name}</strong> in ${totalTime} minutes!
                 </p>
+                
+                <!-- Achievement Stats -->
+                <div class="glass rounded-2xl p-6 mb-6">
+                    <h3 class="text-lg font-bold mb-4">Today's Achievement 🏆</h3>
+                    <div class="grid grid-cols-2 gap-4 text-sm">
+                        <div class="bg-pink-500/20 rounded-lg p-3">
+                            <div class="font-bold text-pink-400">Workout</div>
+                            <div class="text-gray-300">${this.currentWorkout.data.name}</div>
+                        </div>
+                        <div class="bg-purple-500/20 rounded-lg p-3">
+                            <div class="font-bold text-purple-400">Duration</div>
+                            <div class="text-gray-300">${totalTime} min</div>
+                        </div>
+                        <div class="bg-emerald-500/20 rounded-lg p-3">
+                            <div class="font-bold text-emerald-400">Exercises</div>
+                            <div class="text-gray-300">${this.currentWorkout.data.exercises.length}</div>
+                        </div>
+                        <div class="bg-orange-500/20 rounded-lg p-3">
+                            <div class="font-bold text-orange-400">Rounds</div>
+                            <div class="text-gray-300">${this.currentWorkout.data.rounds}</div>
+                        </div>
+                    </div>
+                </div>
+                
                 <div class="glass rounded-2xl p-6 mb-8">
-                    <h3 class="text-lg font-bold mb-4">Cooldown</h3>
-                    <div class="space-y-2 text-gray-300">
+                    <h3 class="text-lg font-bold mb-4">Cooldown Stretches 🧘‍♀️</h3>
+                    <div class="space-y-2 text-gray-300 text-sm">
                         ${this.currentWorkout.data.cooldown.map(stretch => `
-                            <div class="p-2">${stretch}</div>
+                            <div class="p-2 bg-gray-700/30 rounded-lg">${stretch}</div>
                         `).join('')}
                     </div>
                 </div>
-                <button onclick="location.reload()" 
-                        class="bg-gradient-to-r from-pink-500 to-purple-500 px-8 py-4 rounded-xl font-bold text-lg">
-                    Back to Home
-                </button>
+                
+                <div class="flex gap-4">
+                    <button onclick="window.poojoFit.returnToHome()" 
+                            class="bg-gradient-to-r from-pink-500 to-purple-500 px-8 py-4 rounded-xl font-bold text-lg flex-1">
+                        <i data-lucide="home" class="w-5 h-5 mr-2 inline"></i>Back to Home
+                    </button>
+                </div>
+                
+                <p class="text-sm text-gray-400 mt-4">
+                    Keep up the great work! Tomorrow's workout is waiting for you 💪
+                </p>
             </div>
         </div>
         `;
         
-        // Update stats
+        // Refresh icons
+        setTimeout(() => lucide.createIcons(), 100);
+    }
+
+    // Save workout completion with comprehensive data
+    saveWorkoutCompletion(totalTime, workoutDate) {
         const userData = this.getUserData();
+        
+        // Update basic stats
         userData.totalWorkouts = (userData.totalWorkouts || 0) + 1;
         userData.totalTime = (userData.totalTime || 0) + totalTime;
+        
+        // Update streak
+        const lastWorkoutDate = userData.lastWorkoutDate;
+        const today = new Date().toDateString();
+        
+        if (lastWorkoutDate === today) {
+            // Already worked out today - don't increment streak again
+        } else if (this.isConsecutiveDay(lastWorkoutDate, today)) {
+            userData.currentStreak = (userData.currentStreak || 0) + 1;
+        } else {
+            userData.currentStreak = 1; // Reset streak
+        }
+        
+        // Track daily completions
+        if (!userData.completedWorkouts) userData.completedWorkouts = {};
+        userData.completedWorkouts[today] = {
+            workoutType: this.currentWorkout.type,
+            workoutName: this.currentWorkout.data.name,
+            duration: totalTime,
+            exercises: this.currentWorkout.data.exercises.length,
+            rounds: this.currentWorkout.data.rounds,
+            completedAt: new Date().toISOString()
+        };
+        
+        // Update last workout date
+        userData.lastWorkoutDate = today;
+        
+        // Update personal records
+        if (!userData.personalRecords) userData.personalRecords = {};
+        const workoutKey = this.currentWorkout.type;
+        if (!userData.personalRecords[workoutKey] || userData.personalRecords[workoutKey] > totalTime) {
+            userData.personalRecords[workoutKey] = totalTime;
+        }
+        
         this.saveUserData(userData);
+        console.log('Workout completion saved:', userData);
+    }
+
+    // Check if dates are consecutive
+    isConsecutiveDay(lastDate, currentDate) {
+        if (!lastDate) return true;
+        
+        const last = new Date(lastDate);
+        const current = new Date(currentDate);
+        const diffTime = Math.abs(current - last);
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        
+        return diffDays === 1;
+    }
+
+    // Return to home page
+    returnToHome() {
+        // Reset workout state
+        this.currentWorkout = null;
+        
+        // Return to main page and refresh to show updated stats
+        location.reload();
     }
 
     // Pause workout
     pauseWorkout() {
-        // Implementation for pause functionality
-        alert('Pause feature coming soon!');
+        console.log('Pause workout called, isPaused:', this.currentWorkout?.isPaused);
+        
+        if (!this.currentWorkout?.isPaused) {
+            // Pause the workout
+            this.currentWorkout.isPaused = true;
+            clearInterval(this.exerciseTimer);
+            clearInterval(this.workoutTimer);
+            
+            // Update button to show resume
+            const pauseBtn = document.getElementById('pause-btn');
+            if (pauseBtn) {
+                pauseBtn.innerHTML = '<i data-lucide="play" class="w-5 h-5 mr-2 inline"></i>Resume';
+                pauseBtn.onclick = () => window.poojoFit.resumeWorkout();
+            }
+            
+            // Show pause overlay
+            this.showPauseOverlay();
+        }
+    }
+
+    // Resume workout
+    resumeWorkout() {
+        if (this.currentWorkout.isPaused) {
+            this.currentWorkout.isPaused = false;
+            
+            // Update pause time to maintain accurate workout timer
+            const pauseDuration = new Date() - this.currentWorkout.pauseStartTime;
+            this.currentWorkout.startTime = new Date(this.currentWorkout.startTime.getTime() + pauseDuration);
+            
+            // Restart timers
+            this.startWorkoutTimer();
+            const workout = this.currentWorkout.data;
+            const currentExercise = workout.exercises[this.currentWorkout.currentExercise];
+            
+            if (currentExercise.duration && this.currentWorkout.exerciseTimeLeft > 0) {
+                this.startTimer(this.currentWorkout.exerciseTimeLeft);
+            }
+            
+            // Update button back to pause
+            const pauseBtn = document.getElementById('pause-btn');
+            if (pauseBtn) {
+                pauseBtn.innerHTML = '<i data-lucide="pause" class="w-5 h-5 mr-2 inline"></i>Pause';
+                pauseBtn.onclick = () => window.poojoFit.pauseWorkout();
+            }
+            
+            // Remove pause overlay
+            this.removePauseOverlay();
+            lucide.createIcons();
+        }
+    }
+
+    // Show pause overlay
+    showPauseOverlay() {
+        this.currentWorkout.pauseStartTime = new Date();
+        
+        const overlay = document.createElement('div');
+        overlay.id = 'pause-overlay';
+        overlay.className = 'fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50';
+        overlay.innerHTML = `
+            <div class="glass rounded-3xl p-8 text-center max-w-sm mx-auto">
+                <div class="text-6xl mb-4">⏸️</div>
+                <h3 class="text-2xl font-bold mb-4">Workout Paused</h3>
+                <p class="text-gray-300 mb-6">Take a breather! Resume when you're ready.</p>
+                <div class="flex gap-4">
+                    <button onclick="window.poojoFit.resumeWorkout()" 
+                            class="bg-gradient-to-r from-green-500 to-emerald-500 px-6 py-3 rounded-xl font-bold flex-1">
+                        <i data-lucide="play" class="w-5 h-5 mr-2 inline"></i>Resume
+                    </button>
+                    <button onclick="window.poojoFit.exitWorkout()" 
+                            class="bg-gradient-to-r from-red-500 to-pink-500 px-6 py-3 rounded-xl font-bold flex-1">
+                        <i data-lucide="x" class="w-5 h-5 mr-2 inline"></i>Exit
+                    </button>
+                </div>
+            </div>
+        `;
+        
+        document.body.appendChild(overlay);
+        lucide.createIcons();
+    }
+
+    // Remove pause overlay
+    removePauseOverlay() {
+        const overlay = document.getElementById('pause-overlay');
+        if (overlay) {
+            overlay.remove();
+        }
     }
 
     // Exit workout
     exitWorkout() {
-        if (confirm('Are you sure you want to exit this workout?')) {
-            clearInterval(this.workoutTimer);
-            clearInterval(this.exerciseTimer);
+        console.log('Exit workout called, currentWorkout:', this.currentWorkout);
+        try {
+            if (confirm('Are you sure you want to exit this workout? Your progress will not be saved.')) {
+                console.log('User confirmed exit');
+                
+                // Clear all timers
+                if (this.workoutTimer) {
+                    clearInterval(this.workoutTimer);
+                    console.log('Workout timer cleared');
+                }
+                if (this.exerciseTimer) {
+                    clearInterval(this.exerciseTimer);
+                    console.log('Exercise timer cleared');
+                }
+                
+                // Remove pause overlay if it exists
+                this.removePauseOverlay();
+                console.log('Pause overlay removed');
+                
+                // Reset workout state
+                this.currentWorkout = null;
+                console.log('Workout state reset');
+                
+                // Return to main page
+                console.log('Returning to home page');
+                location.reload();
+            } else {
+                console.log('User cancelled exit');
+            }
+        } catch (error) {
+            console.error('Error in exitWorkout:', error);
+            // Force exit in case of error
             location.reload();
         }
     }
@@ -628,6 +955,7 @@ class PoojoFit {
 // Initialize the app when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
     window.poojoFit = new PoojoFit();
+    console.log('PoojoFit app initialized:', window.poojoFit);
 });
 
 // Handle install prompt for PWA
