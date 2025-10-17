@@ -491,40 +491,44 @@ class PoojoFit {
             // Only handle workout screen buttons
             if (!this.currentWorkout) return;
             
-            console.log('Click detected:', e.target.id, e.target);
+            // Find the button element - might be clicking on SVG or other child elements
+            let button = e.target;
+            while (button && button.tagName !== 'BUTTON' && button !== document.body) {
+                button = button.parentElement;
+            }
             
-            // Check for button clicks
-            if (e.target.id === 'back-btn' || e.target.closest('#back-btn')) {
-                e.preventDefault();
-                console.log('Back button clicked');
-                this.exitWorkout();
-            } else if (e.target.id === 'pause-btn' || e.target.closest('#pause-btn')) {
-                e.preventDefault();
-                console.log('Pause button clicked, isPaused:', this.currentWorkout?.isPaused);
-                // Check if it's pause or resume based on current state
-                if (this.currentWorkout?.isPaused) {
-                    this.resumeWorkout();
-                } else {
-                    this.pauseWorkout();
-                }
-            } else if (e.target.id === 'skip-btn' || e.target.closest('#skip-btn')) {
-                e.preventDefault();
-                console.log('Skip button clicked');
-                this.skipCurrentExercise();
-            } else if (e.target.id === 'next-btn' || e.target.closest('#next-btn')) {
-                e.preventDefault();
-                console.log('Next button clicked');
-                this.nextExercise();
-            } else if (e.target.id === 'finish-btn' || e.target.closest('#finish-btn')) {
-                e.preventDefault();
-                console.log('Finish button clicked');
-                this.finishWorkout();
+            if (!button || button.tagName !== 'BUTTON') return;
+            
+            e.preventDefault();
+            e.stopPropagation();
+            
+            const buttonId = button.id;
+            
+            switch (buttonId) {
+                case 'back-btn':
+                    this.exitWorkout();
+                    break;
+                case 'pause-btn':
+                    if (this.currentWorkout?.isPaused) {
+                        this.resumeWorkout();
+                    } else {
+                        this.pauseWorkout();
+                    }
+                    break;
+                case 'skip-btn':
+                    this.skipCurrentExercise();
+                    break;
+                case 'next-btn':
+                    this.nextExercise();
+                    break;
+                case 'finish-btn':
+                    this.finishWorkout();
+                    break;
             }
         };
 
         // Use event delegation on the body for workout buttons
         document.body.addEventListener('click', this.workoutEventHandler);
-        console.log('Workout event listeners attached');
     }
 
     // Generate workout HTML
@@ -669,16 +673,25 @@ class PoojoFit {
         // Store the remaining time for pause functionality
         this.currentWorkout.exerciseTimeLeft = timeLeft;
         
+        // Clear any existing timer first
+        if (this.exerciseTimer) {
+            clearInterval(this.exerciseTimer);
+        }
+        
         this.exerciseTimer = setInterval(() => {
             if (!this.currentWorkout.isPaused) {
                 display.textContent = timeLeft;
                 this.currentWorkout.exerciseTimeLeft = timeLeft;
-                timeLeft--;
                 
-                if (timeLeft < 0) {
+                if (timeLeft <= 0) {
                     clearInterval(this.exerciseTimer);
+                    this.exerciseTimer = null;
+                    // Automatically move to next exercise when timer completes
                     this.nextExercise();
+                    return;
                 }
+                
+                timeLeft--;
             }
         }, 1000);
     }
@@ -708,8 +721,14 @@ class PoojoFit {
             this.currentTimer = null;
         }
         
+        // Clear exercise timer as well
+        if (this.exerciseTimer) {
+            clearInterval(this.exerciseTimer);
+            this.exerciseTimer = null;
+        }
+        
         // Show skip feedback
-        const timerDisplay = document.getElementById('timer');
+        const timerDisplay = document.getElementById('exercise-display');
         if (timerDisplay) {
             timerDisplay.textContent = 'Skipped!';
             timerDisplay.style.color = '#fbbf24'; // Yellow color for feedback
@@ -718,13 +737,14 @@ class PoojoFit {
             setTimeout(() => {
                 this.proceedToNextExercise();
             }, 800);
+        } else {
+            this.proceedToNextExercise();
         }
     }
 
     // Next exercise  
     nextExercise() {
         if (!this.currentWorkout || !this.currentWorkout.data) {
-            console.log('No current workout data');
             return;
         }
         
@@ -764,6 +784,8 @@ class PoojoFit {
                 setTimeout(() => {
                     this.updateWorkoutDisplay();
                 }, 1500);
+            } else {
+                this.updateWorkoutDisplay();
             }
         } else {
             // Move to next exercise
@@ -783,44 +805,62 @@ class PoojoFit {
     }
 
     showRestTimer(restDuration) {
-        const workoutContent = document.getElementById('workout-content');
-        workoutContent.innerHTML = `
-            <div class="text-center">
-                <div class="mb-8">
-                    <h2 class="text-2xl font-bold text-gray-800 mb-2">Rest Time</h2>
-                    <p class="text-gray-600">Take a quick break</p>
+        // Replace the entire body content with rest timer
+        document.querySelector('body').innerHTML = `
+        <div class="min-h-screen gradient-bg text-white p-6">
+            <div class="max-w-2xl mx-auto">
+                <div class="text-center">
+                    <div class="mb-8">
+                        <h2 class="text-2xl font-bold text-white mb-2">Rest Time</h2>
+                        <p class="text-gray-300">Take a quick break</p>
+                    </div>
+                    
+                    <div class="mb-8">
+                        <div class="text-6xl font-bold text-blue-400 mb-4" id="rest-timer">${restDuration}</div>
+                        <div class="text-lg text-gray-300">seconds</div>
+                    </div>
+                    
+                    <button id="skip-rest-btn" class="px-6 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 transition-colors">
+                        Skip Rest
+                    </button>
                 </div>
-                
-                <div class="mb-8">
-                    <div class="text-6xl font-bold text-blue-600 mb-4" id="rest-timer">${restDuration}</div>
-                    <div class="text-lg text-gray-600">seconds</div>
-                </div>
-                
-                <button id="skip-rest-btn" class="px-6 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 transition-colors">
-                    Skip Rest
-                </button>
             </div>
+        </div>
         `;
         
         let timeLeft = restDuration;
         const timerDisplay = document.getElementById('rest-timer');
-        const skipRestBtn = document.getElementById('skip-rest-btn');
+        
+        // Clear any existing timer
+        if (this.currentTimer) {
+            clearInterval(this.currentTimer);
+        }
         
         this.currentTimer = setInterval(() => {
             timeLeft--;
-            timerDisplay.textContent = timeLeft;
+            if (timerDisplay) {
+                timerDisplay.textContent = timeLeft;
+            }
             
             if (timeLeft <= 0) {
                 clearInterval(this.currentTimer);
+                this.currentTimer = null;
                 this.proceedToNextExercise();
             }
         }, 1000);
         
         // Skip rest functionality
-        skipRestBtn.addEventListener('click', () => {
-            clearInterval(this.currentTimer);
-            this.proceedToNextExercise();
-        });
+        const skipRestBtn = document.getElementById('skip-rest-btn');
+        if (skipRestBtn) {
+            skipRestBtn.addEventListener('click', () => {
+                clearInterval(this.currentTimer);
+                this.currentTimer = null;
+                this.proceedToNextExercise();
+            });
+        }
+        
+        // Refresh icons
+        lucide.createIcons();
     }
 
     // Finish workout (called by finish button)
