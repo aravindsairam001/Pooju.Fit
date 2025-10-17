@@ -752,8 +752,8 @@ class PoojoFit {
         // Check if it's the last exercise of the current round
         if (this.currentWorkout.currentExercise >= workout.exercises.length - 1) {
             if (this.currentWorkout.currentRound >= workout.rounds) {
-                // Workout is complete
-                this.finishWorkout();
+                // This is the last exercise of the last round - show finish button
+                this.showFinishScreen();
                 return;
             }
             
@@ -778,6 +778,70 @@ class PoojoFit {
             this.currentWorkout.currentExercise++;
             this.updateWorkoutDisplay();
         }
+    }
+
+    showFinishScreen() {
+        // Show a completion screen with finish button
+        document.querySelector('body').innerHTML = `
+        <div class="min-h-screen gradient-bg text-white p-6">
+            <div class="max-w-2xl mx-auto text-center">
+                <div class="mb-8">
+                    <div class="text-8xl mb-6">🎉</div>
+                    <h2 class="text-4xl font-bold mb-4">Workout Complete!</h2>
+                    <p class="text-xl text-gray-300 mb-6">
+                        Amazing work! You've completed all exercises in <strong>${this.currentWorkout.data.name}</strong>!
+                    </p>
+                </div>
+                
+                <div class="glass rounded-3xl p-8 mb-8">
+                    <h3 class="text-2xl font-bold mb-6">Ready to Finish?</h3>
+                    <div class="grid grid-cols-2 gap-4 text-sm mb-6">
+                        <div class="bg-pink-500/20 rounded-lg p-3">
+                            <div class="font-bold text-pink-400">Exercises</div>
+                            <div class="text-gray-300">${this.currentWorkout.data.exercises.length}</div>
+                        </div>
+                        <div class="bg-purple-500/20 rounded-lg p-3">
+                            <div class="font-bold text-purple-400">Rounds</div>
+                            <div class="text-gray-300">${this.currentWorkout.data.rounds}</div>
+                        </div>
+                    </div>
+                    
+                    <div class="space-y-4">
+                        <button id="finish-workout-btn" class="w-full bg-gradient-to-r from-green-500 to-emerald-500 px-8 py-4 rounded-xl font-bold text-lg">
+                            <i data-lucide="trophy" class="w-6 h-6 mr-2 inline"></i>🏁 Finish Workout & Save Progress
+                        </button>
+                        
+                        <button id="exit-without-saving-btn" class="w-full bg-gray-600 hover:bg-gray-700 px-8 py-3 rounded-xl font-bold">
+                            <i data-lucide="x-circle" class="w-5 h-5 mr-2 inline"></i>Exit Without Saving
+                        </button>
+                    </div>
+                </div>
+                
+                <p class="text-sm text-gray-400">
+                    Click "Finish Workout" to save your progress and update your streak! 💪
+                </p>
+            </div>
+        </div>
+        `;
+        
+        // Add event listeners for the buttons
+        const finishBtn = document.getElementById('finish-workout-btn');
+        const exitBtn = document.getElementById('exit-without-saving-btn');
+        
+        if (finishBtn) {
+            finishBtn.addEventListener('click', () => {
+                this.finishWorkout();
+            });
+        }
+        
+        if (exitBtn) {
+            exitBtn.addEventListener('click', () => {
+                this.exitWorkout();
+            });
+        }
+        
+        // Refresh icons
+        lucide.createIcons();
     }
 
     updateWorkoutDisplay() {
@@ -831,7 +895,18 @@ class PoojoFit {
             if (timeLeft <= 0) {
                 clearInterval(this.currentTimer);
                 this.currentTimer = null;
-                this.proceedToNextExercise();
+                
+                // Check if this was the last exercise
+                const workout = this.currentWorkout.data;
+                const isLastExercise = this.currentWorkout.currentExercise >= workout.exercises.length - 1;
+                const isLastRound = this.currentWorkout.currentRound >= workout.rounds;
+                
+                if (isLastExercise && isLastRound) {
+                    // Show finish screen instead of proceeding to next exercise
+                    this.showFinishScreen();
+                } else {
+                    this.proceedToNextExercise();
+                }
             }
         }, 1000);
         
@@ -841,7 +916,18 @@ class PoojoFit {
             skipRestBtn.addEventListener('click', () => {
                 clearInterval(this.currentTimer);
                 this.currentTimer = null;
-                this.proceedToNextExercise();
+                
+                // Check if this was the last exercise
+                const workout = this.currentWorkout.data;
+                const isLastExercise = this.currentWorkout.currentExercise >= workout.exercises.length - 1;
+                const isLastRound = this.currentWorkout.currentRound >= workout.rounds;
+                
+                if (isLastExercise && isLastRound) {
+                    // Show finish screen instead of proceeding to next exercise
+                    this.showFinishScreen();
+                } else {
+                    this.proceedToNextExercise();
+                }
             });
         }
         
