@@ -616,28 +616,14 @@ class PoojoFit {
     // Check if this is the last exercise of the entire workout
     isLastExerciseOfWorkout() {
         if (!this.currentWorkout || !this.currentWorkout.data) {
-            console.log('No current workout data');
             return false;
         }
         
         const workout = this.currentWorkout.data;
         const isLastExercise = this.currentWorkout.currentExercise === workout.exercises.length - 1;
         const isLastRound = this.currentWorkout.currentRound === workout.rounds;
-        const result = isLastExercise && isLastRound;
         
-        console.log('isLastExerciseOfWorkout check:', {
-            workoutName: workout.name,
-            currentExercise: this.currentWorkout.currentExercise,
-            totalExercises: workout.exercises.length,
-            currentExerciseName: workout.exercises[this.currentWorkout.currentExercise]?.name,
-            isLastExercise,
-            currentRound: this.currentWorkout.currentRound,
-            totalRounds: workout.rounds,
-            isLastRound,
-            result
-        });
-        
-        return result;
+        return isLastExercise && isLastRound;
     }
 
     // Start current exercise
@@ -865,8 +851,6 @@ class PoojoFit {
 
     // Finish workout (called by finish button)
     finishWorkout() {
-        console.log('finishWorkout called - user clicked finish button');
-        
         // Clear timers
         clearInterval(this.workoutTimer);
         clearInterval(this.exerciseTimer);
@@ -883,8 +867,6 @@ class PoojoFit {
 
     // Complete workout (called internally, no data saving)
     completeWorkout() {
-        console.log('completeWorkout called - workout finished automatically');
-        
         clearInterval(this.workoutTimer);
         clearInterval(this.exerciseTimer);
         
