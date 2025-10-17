@@ -497,6 +497,15 @@ class PoojoFit {
             });
         }
 
+        // Skip button (for timed exercises)
+        const skipBtn = document.getElementById('skip-btn');
+        if (skipBtn) {
+            skipBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                this.skipCurrentExercise();
+            });
+        }
+
         // Next/Finish button
         const nextBtn = document.getElementById('next-btn');
         const finishBtn = document.getElementById('finish-btn');
@@ -563,6 +572,14 @@ class PoojoFit {
                     <button id="pause-btn" class="glass px-6 py-3 rounded-xl font-bold">
                         <i data-lucide="pause" class="w-5 h-5 mr-2 inline"></i>Pause
                     </button>
+                    
+                    <!-- Skip button - only show for timed exercises -->
+                    ${currentEx.duration ? 
+                        `<button id="skip-btn" class="bg-gradient-to-r from-yellow-500 to-orange-500 px-4 py-3 rounded-xl font-bold text-sm">
+                            <i data-lucide="fast-forward" class="w-4 h-4 mr-1 inline"></i>Skip Timer
+                        </button>` : ''
+                    }
+                    
                     ${this.isLastExerciseOfWorkout() ? 
                         `<button id="finish-btn" class="bg-gradient-to-r from-green-500 to-emerald-500 px-6 py-3 rounded-xl font-bold">
                             <i data-lucide="check-circle" class="w-5 h-5 mr-2 inline"></i>🏁 Finish Workout
@@ -626,7 +643,15 @@ class PoojoFit {
             this.startTimer(exercise.duration);
         } else {
             // For rep-based exercises, show reps and wait for user input
-            document.getElementById('exercise-display').textContent = exercise.reps;
+            const display = document.getElementById('exercise-display');
+            display.textContent = exercise.reps;
+            display.className = 'text-6xl font-bold mb-6 text-purple-400';
+            
+            // Add instruction for rep-based exercises
+            const instructionEl = document.querySelector('.text-xl.text-gray-300');
+            if (instructionEl) {
+                instructionEl.innerHTML = 'reps<br><span class="text-sm text-yellow-400">Complete your reps, then click "Next"</span>';
+            }
         }
         
         this.startWorkoutTimer();
@@ -671,30 +696,104 @@ class PoojoFit {
         }, 1000);
     }
 
+    // Skip current exercise (for when user can't complete timed exercise)
+    skipCurrentExercise() {
+        // Clear any active timer
+        if (this.currentTimer) {
+            clearInterval(this.currentTimer);
+            this.currentTimer = null;
+        }
+        
+        // Show skip feedback
+        const timerDisplay = document.getElementById('timer');
+        if (timerDisplay) {
+            timerDisplay.textContent = 'Skipped!';
+            timerDisplay.style.color = '#fbbf24'; // Yellow color for feedback
+            
+            // After brief delay, proceed to next exercise (skip rest timer)
+            setTimeout(() => {
+                this.proceedToNextExercise();
+            }, 800);
+        }
+    }
+
     // Next exercise  
     nextExercise() {
-        clearInterval(this.exerciseTimer);
-        
-        const workout = this.currentWorkout.data;
-        
-        // Check if this is the last exercise of the last round BEFORE moving
-        const isCurrentlyLastExercise = this.currentWorkout.currentExercise === workout.exercises.length - 1;
-        const isCurrentlyLastRound = this.currentWorkout.currentRound === workout.rounds;
-        
-        if (isCurrentlyLastExercise && isCurrentlyLastRound) {
-            this.completeWorkout();
-            return;
+        if (this.currentWorkout.isActive) {
+            const currentProgram = this.workoutPrograms.find(p => p.id === this.currentWorkout.programId);
+            const currentEx = currentProgram.exercises[this.currentWorkout.exerciseIndex];
+            
+            // Show rest timer if there's a rest period
+            if (currentEx.rest > 0) {
+                this.showRestTimer(currentEx.rest);
+                return;
+            }
+            
+            this.proceedToNextExercise();
         }
+    }
+
+    proceedToNextExercise() {
+        const currentProgram = this.workoutPrograms.find(p => p.id === this.currentWorkout.programId);
         
-        if (this.currentWorkout.currentExercise < workout.exercises.length - 1) {
-            this.currentWorkout.currentExercise++;
-            this.showWorkoutScreen();
+        // Check if it's the last exercise of the current round
+        if (this.currentWorkout.exerciseIndex >= currentProgram.exercises.length - 1) {
+            if (this.currentWorkout.round >= currentProgram.rounds) {
+                // Start cooldown
+                this.showCooldownScreen(currentProgram);
+                return;
+            }
+            
+            // Start next round
+            this.currentWorkout.round++;
+            this.currentWorkout.exerciseIndex = 0;
+            this.showRoundTransition(this.currentWorkout.round);
         } else {
-            // End of round - move to next round
-            this.currentWorkout.currentRound++;
-            this.currentWorkout.currentExercise = 0;
-            this.showWorkoutScreen();
+            // Move to next exercise
+            this.currentWorkout.exerciseIndex++;
+            this.showExercise();
         }
+    }
+
+    showRestTimer(restDuration) {
+        const workoutContent = document.getElementById('workout-content');
+        workoutContent.innerHTML = `
+            <div class="text-center">
+                <div class="mb-8">
+                    <h2 class="text-2xl font-bold text-gray-800 mb-2">Rest Time</h2>
+                    <p class="text-gray-600">Take a quick break</p>
+                </div>
+                
+                <div class="mb-8">
+                    <div class="text-6xl font-bold text-blue-600 mb-4" id="rest-timer">${restDuration}</div>
+                    <div class="text-lg text-gray-600">seconds</div>
+                </div>
+                
+                <button id="skip-rest-btn" class="px-6 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 transition-colors">
+                    Skip Rest
+                </button>
+            </div>
+        `;
+        
+        let timeLeft = restDuration;
+        const timerDisplay = document.getElementById('rest-timer');
+        const skipRestBtn = document.getElementById('skip-rest-btn');
+        
+        this.currentTimer = setInterval(() => {
+            timeLeft--;
+            timerDisplay.textContent = timeLeft;
+            
+            if (timeLeft <= 0) {
+                clearInterval(this.currentTimer);
+                this.proceedToNextExercise();
+            }
+        }, 1000);
+        
+        // Skip rest functionality
+        skipRestBtn.addEventListener('click', () => {
+            clearInterval(this.currentTimer);
+            this.proceedToNextExercise();
+        });
     }
 
     // Finish workout (called by finish button)
