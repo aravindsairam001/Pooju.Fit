@@ -26,12 +26,10 @@ class PoojoFit {
 
     // Initialize UI Components
     initializeUI() {
-        console.log('Initializing UI...');
         this.createWeeklySchedule();
         this.setupProgressTracking();
         this.initializeMobileMenu();
         this.updateTodaysWorkout();
-        console.log('UI initialization complete');
     }
 
     // Event Binding
@@ -353,7 +351,7 @@ class PoojoFit {
 
     // Initialize Mobile Menu
     initializeMobileMenu() {
-        console.log('Mobile menu initialized');
+        // Mobile menu functionality can be added here
     }
 
     // Mobile Menu Toggle
@@ -389,8 +387,7 @@ class PoojoFit {
         // Show workout screen
         this.showWorkoutScreen();
         
-        // Update user data
-        this.updateWorkoutStats();
+        // Note: Workout stats will only be updated when user clicks "Finish"
     }
 
     // Get workout data by type
@@ -475,8 +472,48 @@ class PoojoFit {
     showWorkoutScreen() {
         // Hide main content and show workout interface
         document.querySelector('body').innerHTML = this.getWorkoutHTML();
+        this.attachWorkoutEventListeners();
         this.startCurrentExercise();
         lucide.createIcons();
+    }
+
+    // Attach event listeners for workout screen
+    attachWorkoutEventListeners() {
+        // Back button
+        const backBtn = document.getElementById('back-btn');
+        if (backBtn) {
+            backBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                this.exitWorkout();
+            });
+        }
+
+        // Pause button
+        const pauseBtn = document.getElementById('pause-btn');
+        if (pauseBtn) {
+            pauseBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                this.pauseWorkout();
+            });
+        }
+
+        // Next/Finish button
+        const nextBtn = document.getElementById('next-btn');
+        const finishBtn = document.getElementById('finish-btn');
+        
+        if (nextBtn) {
+            nextBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                this.nextExercise();
+            });
+        }
+        
+        if (finishBtn) {
+            finishBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                this.finishWorkout();
+            });
+        }
     }
 
     // Generate workout HTML
@@ -489,7 +526,7 @@ class PoojoFit {
             <div class="max-w-2xl mx-auto">
                 <!-- Header -->
                 <div class="flex items-center justify-between mb-8">
-                    <button onclick="window.poojoFit.exitWorkout()" class="glass p-3 rounded-xl">
+                    <button class="glass p-3 rounded-xl" id="back-btn">
                         <i data-lucide="arrow-left" class="w-6 h-6"></i>
                     </button>
                     <div class="text-center">
@@ -523,18 +560,15 @@ class PoojoFit {
 
                 <!-- Controls -->
                 <div class="flex gap-4 justify-center">
-                    <button onclick="window.poojoFit.pauseWorkout()" id="pause-btn" 
-                            class="glass px-6 py-3 rounded-xl font-bold">
+                    <button id="pause-btn" class="glass px-6 py-3 rounded-xl font-bold">
                         <i data-lucide="pause" class="w-5 h-5 mr-2 inline"></i>Pause
                     </button>
                     ${this.isLastExerciseOfWorkout() ? 
-                        `<button onclick="window.poojoFit.completeWorkout()" id="finish-btn"
-                                class="bg-gradient-to-r from-green-500 to-emerald-500 px-6 py-3 rounded-xl font-bold">
-                            <i data-lucide="check-circle" class="w-5 h-5 mr-2 inline"></i>Finish
+                        `<button id="finish-btn" class="bg-gradient-to-r from-green-500 to-emerald-500 px-6 py-3 rounded-xl font-bold">
+                            <i data-lucide="check-circle" class="w-5 h-5 mr-2 inline"></i>🏁 Finish Workout
                         </button>` :
-                        `<button onclick="window.poojoFit.nextExercise()" id="next-btn"
-                                class="bg-gradient-to-r from-pink-500 to-purple-500 px-6 py-3 rounded-xl font-bold">
-                            <i data-lucide="skip-forward" class="w-5 h-5 mr-2 inline"></i>Next
+                        `<button id="next-btn" class="bg-gradient-to-r from-pink-500 to-purple-500 px-6 py-3 rounded-xl font-bold">
+                            <i data-lucide="skip-forward" class="w-5 h-5 mr-2 inline"></i>➡️ Next Exercise (${this.currentWorkout.currentExercise + 1}/${this.currentWorkout.data.exercises.length})
                         </button>`
                     }
                 </div>
@@ -558,10 +592,29 @@ class PoojoFit {
 
     // Check if this is the last exercise of the entire workout
     isLastExerciseOfWorkout() {
+        if (!this.currentWorkout || !this.currentWorkout.data) {
+            console.log('No current workout data');
+            return false;
+        }
+        
         const workout = this.currentWorkout.data;
         const isLastExercise = this.currentWorkout.currentExercise === workout.exercises.length - 1;
         const isLastRound = this.currentWorkout.currentRound === workout.rounds;
-        return isLastExercise && isLastRound;
+        const result = isLastExercise && isLastRound;
+        
+        console.log('isLastExerciseOfWorkout check:', {
+            workoutName: workout.name,
+            currentExercise: this.currentWorkout.currentExercise,
+            totalExercises: workout.exercises.length,
+            currentExerciseName: workout.exercises[this.currentWorkout.currentExercise]?.name,
+            isLastExercise,
+            currentRound: this.currentWorkout.currentRound,
+            totalRounds: workout.rounds,
+            isLastRound,
+            result
+        });
+        
+        return result;
     }
 
     // Start current exercise
@@ -618,45 +671,78 @@ class PoojoFit {
         }, 1000);
     }
 
-    // Next exercise
+    // Next exercise  
     nextExercise() {
         clearInterval(this.exerciseTimer);
         
         const workout = this.currentWorkout.data;
         
+        // Check if this is the last exercise of the last round BEFORE moving
+        const isCurrentlyLastExercise = this.currentWorkout.currentExercise === workout.exercises.length - 1;
+        const isCurrentlyLastRound = this.currentWorkout.currentRound === workout.rounds;
+        
+        if (isCurrentlyLastExercise && isCurrentlyLastRound) {
+            this.completeWorkout();
+            return;
+        }
+        
         if (this.currentWorkout.currentExercise < workout.exercises.length - 1) {
             this.currentWorkout.currentExercise++;
             this.showWorkoutScreen();
         } else {
-            // End of round
-            if (this.currentWorkout.currentRound < workout.rounds) {
-                this.currentWorkout.currentRound++;
-                this.currentWorkout.currentExercise = 0;
-                this.showWorkoutScreen();
-            } else {
-                this.completeWorkout();
-            }
+            // End of round - move to next round
+            this.currentWorkout.currentRound++;
+            this.currentWorkout.currentExercise = 0;
+            this.showWorkoutScreen();
         }
     }
 
-    // Complete workout
-    completeWorkout() {
+    // Finish workout (called by finish button)
+    finishWorkout() {
+        console.log('finishWorkout called - user clicked finish button');
+        
+        // Clear timers
         clearInterval(this.workoutTimer);
         clearInterval(this.exerciseTimer);
         
         const totalTime = Math.floor((new Date() - this.currentWorkout.startTime) / 1000 / 60);
         const workoutDate = new Date().toDateString();
         
-        // Update comprehensive user data
+        // ONLY save data when user explicitly finishes workout
         this.saveWorkoutCompletion(totalTime, workoutDate);
+        
+        // Show completion screen
+        this.showCompletionScreen(totalTime, true);
+    }
+
+    // Complete workout (called internally, no data saving)
+    completeWorkout() {
+        console.log('completeWorkout called - workout finished automatically');
+        
+        clearInterval(this.workoutTimer);
+        clearInterval(this.exerciseTimer);
+        
+        const totalTime = Math.floor((new Date() - this.currentWorkout.startTime) / 1000 / 60);
+        
+        // Show completion screen but don't save data (user didn't explicitly finish)
+        this.showCompletionScreen(totalTime, false);
+    }
+
+    // Show completion screen
+    showCompletionScreen(totalTime, dataSaved) {
+        const completionEmoji = dataSaved ? '🎉' : '⏱️';
+        const completionTitle = dataSaved ? 'Workout Complete!' : 'Workout Finished';
+        const completionMessage = dataSaved 
+            ? `Amazing work! You completed <strong>${this.currentWorkout.data.name}</strong> in ${totalTime} minutes!<br><span class="text-green-400">✅ Progress saved to your records!</span>`
+            : `You finished <strong>${this.currentWorkout.data.name}</strong> in ${totalTime} minutes!<br><span class="text-yellow-400">⚠️ Progress not saved - you didn't click finish.</span>`;
         
         document.querySelector('body').innerHTML = `
         <div class="min-h-screen gradient-bg text-white flex items-center justify-center p-6">
             <div class="text-center max-w-md">
-                <div class="text-8xl mb-6">🎉</div>
-                <h2 class="text-4xl font-bold mb-4">Workout Complete!</h2>
+                <div class="text-8xl mb-6">${completionEmoji}</div>
+                <h2 class="text-4xl font-bold mb-4">${completionTitle}</h2>
                 <p class="text-xl text-gray-300 mb-6">
-                    Amazing work! You completed <strong>${this.currentWorkout.data.name}</strong> in ${totalTime} minutes!
+                    ${completionMessage}
                 </p>
                 
                 <!-- Achievement Stats -->
@@ -777,8 +863,6 @@ class PoojoFit {
 
     // Pause workout
     pauseWorkout() {
-        console.log('Pause workout called, isPaused:', this.currentWorkout?.isPaused);
-        
         if (!this.currentWorkout?.isPaused) {
             // Pause the workout
             this.currentWorkout.isPaused = true;
@@ -841,12 +925,10 @@ class PoojoFit {
                 <h3 class="text-2xl font-bold mb-4">Workout Paused</h3>
                 <p class="text-gray-300 mb-6">Take a breather! Resume when you're ready.</p>
                 <div class="flex gap-4">
-                    <button onclick="window.poojoFit.resumeWorkout()" 
-                            class="bg-gradient-to-r from-green-500 to-emerald-500 px-6 py-3 rounded-xl font-bold flex-1">
+                    <button id="resume-btn" class="bg-gradient-to-r from-green-500 to-emerald-500 px-6 py-3 rounded-xl font-bold flex-1">
                         <i data-lucide="play" class="w-5 h-5 mr-2 inline"></i>Resume
                     </button>
-                    <button onclick="window.poojoFit.exitWorkout()" 
-                            class="bg-gradient-to-r from-red-500 to-pink-500 px-6 py-3 rounded-xl font-bold flex-1">
+                    <button id="exit-overlay-btn" class="bg-gradient-to-r from-red-500 to-pink-500 px-6 py-3 rounded-xl font-bold flex-1">
                         <i data-lucide="x" class="w-5 h-5 mr-2 inline"></i>Exit
                     </button>
                 </div>
@@ -854,6 +936,23 @@ class PoojoFit {
         `;
         
         document.body.appendChild(overlay);
+        
+        // Add event listeners to pause overlay buttons
+        const resumeBtn = overlay.querySelector('#resume-btn');
+        const exitBtn = overlay.querySelector('#exit-overlay-btn');
+        
+        if (resumeBtn) {
+            resumeBtn.addEventListener('click', () => {
+                this.resumeWorkout();
+            });
+        }
+        
+        if (exitBtn) {
+            exitBtn.addEventListener('click', () => {
+                this.exitWorkout();
+            });
+        }
+        
         lucide.createIcons();
     }
 
@@ -867,34 +966,24 @@ class PoojoFit {
 
     // Exit workout
     exitWorkout() {
-        console.log('Exit workout called, currentWorkout:', this.currentWorkout);
         try {
             if (confirm('Are you sure you want to exit this workout? Your progress will not be saved.')) {
-                console.log('User confirmed exit');
-                
                 // Clear all timers
                 if (this.workoutTimer) {
                     clearInterval(this.workoutTimer);
-                    console.log('Workout timer cleared');
                 }
                 if (this.exerciseTimer) {
                     clearInterval(this.exerciseTimer);
-                    console.log('Exercise timer cleared');
                 }
                 
                 // Remove pause overlay if it exists
                 this.removePauseOverlay();
-                console.log('Pause overlay removed');
                 
                 // Reset workout state
                 this.currentWorkout = null;
-                console.log('Workout state reset');
                 
                 // Return to main page
-                console.log('Returning to home page');
                 location.reload();
-            } else {
-                console.log('User cancelled exit');
             }
         } catch (error) {
             console.error('Error in exitWorkout:', error);
@@ -955,7 +1044,6 @@ class PoojoFit {
 // Initialize the app when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
     window.poojoFit = new PoojoFit();
-    console.log('PoojoFit app initialized:', window.poojoFit);
 });
 
 // Handle install prompt for PWA
